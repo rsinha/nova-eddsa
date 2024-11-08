@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use clap::{Arg, Command};
 use flate2::{write::ZlibEncoder, Compression};
 use nova_eddsa::circuit::SigIter;
@@ -32,7 +34,12 @@ fn main() {
 
     type C1 = SigIter<<E1 as Engine>::Scalar>;
     type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
-    let circuit_primary = SigIter::get_step();
+
+    let msg = [0u8; 32];
+    let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
+    let (R, s) = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
+
+    let circuit_primary = SigIter::get_step(&msg, &P, &R, &s);
     let circuit_secondary = TrivialCircuit::default();
 
     println!("Ed25519 Signature Verification");
@@ -65,7 +72,12 @@ fn main() {
         "Number of variables per step (secondary circuit): {}",
         pp.num_variables().1
     );
-    let circuit_primary = SigIter::get_step();
+
+    let msg = [0u8; 32];
+    let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
+    let (R, s) = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
+
+    let circuit_primary = SigIter::get_step(&msg, &P, &R, &s);
     let z0_primary = [];
     let z0_secondary = [<E2 as Engine>::Scalar::zero()];
 
@@ -97,7 +109,11 @@ fn main() {
         recursive_snark_prove_time += end_step;
 
         if i < m - 1 {
-            circuit_primary = SigIter::get_step();
+            let msg = [0u8; 32];
+            let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
+            let (R, s) = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
+
+            circuit_primary = SigIter::get_step(&msg, &P, &R, &s);
         }
     }
 

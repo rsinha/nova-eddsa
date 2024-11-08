@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use crate::ed25519::{compress, sign, verify};
+use crate::ed25519::{compress, verify};
 use bellpepper::gadgets::multipack::bytes_to_bits;
 use bellpepper::gadgets::num::AllocatedNum;
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
@@ -13,7 +13,6 @@ use bellpepper_sha512::sha512::sha512;
 use ff::{PrimeField, PrimeFieldBits};
 use nova_snark::traits::circuit::StepCircuit;
 use num_bigint::{BigInt, BigUint};
-use rand::RngCore;
 use std::marker::PhantomData;
 
 pub fn verify_circuit<F, CS>(
@@ -144,19 +143,15 @@ where
 }
 
 impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> SigIter<F> {
-    pub fn get_step() -> Self {
-        let mut msg: [u8; 32] = [0; 32];
-        rand::thread_rng().fill_bytes(&mut msg);
+    pub fn get_step(msg: &[u8; 32], P: &AffinePoint, R: &AffinePoint, s: &BigUint) -> Self {
 
-        let ((R, s), P) = sign(msg);
-
-        let veri_sig = verify(msg, P.clone(), R.clone(), s.clone());
+        let veri_sig = verify(msg.clone(), P.clone(), R.clone(), s.clone());
         assert!(veri_sig);
 
         Self {
-            pubkey: P,
-            msg,
-            sign: (R, s),
+            pubkey: P.clone(),
+            msg: msg.clone(),
+            sign: (R.clone(), s.clone()),
             _phantom: PhantomData,
         }
     }
@@ -188,6 +183,8 @@ impl<F: PrimeField + PrimeFieldBits> StepCircuit<F> for SigIter<F> {
 
 #[cfg(test)]
 mod test {
+    use crate::ed25519::{keygen, sign};
+
     use super::*;
     use bellpepper_core::test_cs::TestConstraintSystem;
     use ff::Field;
@@ -195,7 +192,11 @@ mod test {
 
     #[test]
     fn test_step_circuit() {
-        let step = SigIter::get_step();
+        let msg = [0u8; 32];
+        let ((private_key, hash_prefix), P) = keygen();
+        let (R, s) = sign(&msg, &private_key, &hash_prefix);
+
+        let step = SigIter::get_step(&msg, &P, &R, &s);
         let mut cs = TestConstraintSystem::<Fp>::new();
         let zero_al =
             AllocatedNum::alloc(&mut cs.namespace(|| "alloc null"), || Ok(Fp::ZERO)).unwrap();

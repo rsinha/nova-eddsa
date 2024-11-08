@@ -28,12 +28,11 @@ pub fn keygen() -> ((BigUint, [u8; 32]), AffinePoint) {
     ((private_key, hash_prefix), P)
 }
 
-pub fn sign(msg: [u8; 32]) -> ((AffinePoint, BigUint), AffinePoint) {
+pub fn sign(msg: &[u8; 32], private_key: &BigUint, hash_prefix: &[u8; 32]) -> (AffinePoint, BigUint) {
     let q = Ed25519Curve::order();
     let G = Ed25519Curve::basepoint();
 
-    // Generate private_key, hash_prefix and public key P
-    let ((private_key, hash_prefix), P) = keygen();
+    let P = Ed25519Curve::scalar_multiplication(&G, private_key);
 
     // Compute r = hash(hash_prefix || msg) mod q
     let mut input = Vec::new();
@@ -59,7 +58,7 @@ pub fn sign(msg: [u8; 32]) -> ((AffinePoint, BigUint), AffinePoint) {
     // Compute s = (r + h * private_key) mod q
     let s = &(r + &(h * private_key).rem(q.clone())).rem(q.clone());
 
-    ((R, s.clone()), P)
+    (R, s.clone())
 }
 
 pub fn verify(msg: [u8; 32], P: AffinePoint, R: AffinePoint, s: BigUint) -> bool {
@@ -116,7 +115,10 @@ mod test {
             let mut msg: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
-            let ((R, s), P) = sign(msg);
+            // Generate private_key, hash_prefix and public key P
+            let ((private_key, hash_prefix), P) = keygen();
+
+            let (R, s) = sign(&msg, &private_key, &hash_prefix);
 
             let veri_sig = verify(msg, P, R, s);
             assert!(veri_sig)
@@ -129,7 +131,10 @@ mod test {
             let mut msg: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
-            let ((R, s), P) = sign(msg);
+            // Generate private_key, hash_prefix and public key P
+            let ((private_key, hash_prefix), P) = keygen();
+
+            let (R, s) = sign(&msg, &private_key, &hash_prefix);
 
             let mut wrong_msg: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut wrong_msg);
@@ -149,7 +154,10 @@ mod test {
             let mut msg: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
-            let ((R, s), _) = sign(msg);
+            // Generate private_key, hash_prefix and public key P
+            let ((private_key, hash_prefix), _P) = keygen();
+
+            let (R, s) = sign(&msg, &private_key, &hash_prefix);
 
             let mut wrong_key_scalar_bytes: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut wrong_key_scalar_bytes);
@@ -173,7 +181,10 @@ mod test {
             let mut msg: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
-            let ((_, s), P) = sign(msg);
+            // Generate private_key, hash_prefix and public key P
+            let ((private_key, hash_prefix), P) = keygen();
+
+            let (_, s) = sign(&msg, &private_key, &hash_prefix);
 
             let mut wrong_r_scalar_bytes: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut wrong_r_scalar_bytes);
@@ -195,7 +206,10 @@ mod test {
             let mut msg: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
-            let ((R, _), P) = sign(msg);
+            // Generate private_key, hash_prefix and public key P
+            let ((private_key, hash_prefix), P) = keygen();
+
+            let (R, _) = sign(&msg, &private_key, &hash_prefix);
 
             let mut wrong_s_bytes: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut wrong_s_bytes);
