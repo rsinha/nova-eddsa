@@ -3,6 +3,7 @@
 use clap::{Arg, Command};
 use flate2::{write::ZlibEncoder, Compression};
 use nova_eddsa::circuit::SigIter;
+use nova_eddsa::ed25519::{Signature, Message, PublicKey};
 use nova_snark::{
     provider::{PallasEngine, VestaEngine},
     traits::Engine,
@@ -19,6 +20,33 @@ type EE1 = nova_snark::provider::ipa_pc::EvaluationEngine<E1>;
 type EE2 = nova_snark::provider::ipa_pc::EvaluationEngine<E2>;
 type S1 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E1, EE1>;
 type S2 = nova_snark::spartan::snark::RelaxedR1CSSNARK<E2, EE2>;
+
+fn chain_signing(m: usize) -> (Vec<PublicKey>, Vec<Message>, Vec<Signature>) {
+    //all my public keys
+    let mut public_keys= Vec::new();
+    let mut private_keys = Vec::new();
+    let mut hash_prefixes = Vec::new();
+    let mut signatures = Vec::new();
+    let mut messages = Vec::new();
+
+    for _ in 0..m+1 {
+        let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
+
+        public_keys.push(P);
+        private_keys.push(private_key);
+        hash_prefixes.push(hash_prefix);
+    }
+
+    for i in 0..m {
+        let msg = public_keys[i+1].x.to_bytes_le();
+        let signature = nova_eddsa::ed25519::sign(&msg, &private_keys[i], &hash_prefixes[i]);
+
+        messages.push(msg);
+        signatures.push(signature);
+    }
+
+    (public_keys, messages, signatures)
+}
 
 fn main() {
     let cmd = Command::new("Ed25519 Signature Verification")
@@ -73,11 +101,9 @@ fn main() {
         pp.num_variables().1
     );
 
-    let msg = [0u8; 32];
-    let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
-    let signature = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
+    let (public_keys, messages, signatures) = chain_signing(m);
 
-    let circuit_primary = SigIter::get_step(&msg, &P, &signature);
+    let circuit_primary = SigIter::get_step(&messages[0], &public_keys[0], &signatures[0]);
     let z0_primary = [];
     let z0_secondary = [<E2 as Engine>::Scalar::zero()];
 
@@ -109,11 +135,7 @@ fn main() {
         recursive_snark_prove_time += end_step;
 
         if i < m - 1 {
-            let msg = [0u8; 32];
-            let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
-            let signature = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
-
-            circuit_primary = SigIter::get_step(&msg, &P, &signature);
+            circuit_primary = SigIter::get_step(&messages[i+1], &public_keys[i+1], &signatures[i+1]);
         }
     }
 
