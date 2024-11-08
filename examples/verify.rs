@@ -37,9 +37,9 @@ fn main() {
 
     let msg = [0u8; 32];
     let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
-    let (R, s) = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
+    let signature = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
 
-    let circuit_primary = SigIter::get_step(&msg, &P, &R, &s);
+    let circuit_primary = SigIter::get_step(&msg, &P, &signature);
     let circuit_secondary = TrivialCircuit::default();
 
     println!("Ed25519 Signature Verification");
@@ -75,9 +75,9 @@ fn main() {
 
     let msg = [0u8; 32];
     let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
-    let (R, s) = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
+    let signature = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
 
-    let circuit_primary = SigIter::get_step(&msg, &P, &R, &s);
+    let circuit_primary = SigIter::get_step(&msg, &P, &signature);
     let z0_primary = [];
     let z0_secondary = [<E2 as Engine>::Scalar::zero()];
 
@@ -111,9 +111,9 @@ fn main() {
         if i < m - 1 {
             let msg = [0u8; 32];
             let ((private_key, hash_prefix), P) = nova_eddsa::ed25519::keygen();
-            let (R, s) = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
+            let signature = nova_eddsa::ed25519::sign(&msg, &private_key, &hash_prefix);
 
-            circuit_primary = SigIter::get_step(&msg, &P, &R, &s);
+            circuit_primary = SigIter::get_step(&msg, &P, &signature);
         }
     }
 

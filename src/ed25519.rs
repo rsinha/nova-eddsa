@@ -7,7 +7,13 @@ use rand::RngCore;
 use sha2::{Digest, Sha512};
 use std::ops::Rem;
 
-pub fn keygen() -> ((BigUint, [u8; 32]), AffinePoint) {
+pub type Signature = (AffinePoint, BigUint);
+pub type PublicKey = AffinePoint;
+pub type PrivateKey = BigUint;
+pub type Message = [u8; 32];
+pub type HashPrefix = [u8; 32];
+
+pub fn keygen() -> ((PrivateKey, HashPrefix), PublicKey) {
     let q = Ed25519Curve::order();
 
     let mut secret: [u8; 32] = [0; 32];
@@ -28,7 +34,7 @@ pub fn keygen() -> ((BigUint, [u8; 32]), AffinePoint) {
     ((private_key, hash_prefix), P)
 }
 
-pub fn sign(msg: &[u8; 32], private_key: &BigUint, hash_prefix: &[u8; 32]) -> (AffinePoint, BigUint) {
+pub fn sign(msg: &Message, private_key: &PrivateKey, hash_prefix: &HashPrefix) -> Signature {
     let q = Ed25519Curve::order();
     let G = Ed25519Curve::basepoint();
 
@@ -61,7 +67,8 @@ pub fn sign(msg: &[u8; 32], private_key: &BigUint, hash_prefix: &[u8; 32]) -> (A
     (R, s.clone())
 }
 
-pub fn verify(msg: [u8; 32], P: AffinePoint, R: AffinePoint, s: BigUint) -> bool {
+pub fn verify(msg: &Message, P: &PublicKey, signature: &Signature) -> bool {
+    let (R, s) = signature;
     let q = Ed25519Curve::order();
     let G = Ed25519Curve::basepoint();
 
@@ -112,15 +119,15 @@ mod test {
     #[test]
     fn test_verify() {
         for _ in 0..20 {
-            let mut msg: [u8; 32] = [0; 32];
+            let mut msg: Message = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
             // Generate private_key, hash_prefix and public key P
             let ((private_key, hash_prefix), P) = keygen();
 
-            let (R, s) = sign(&msg, &private_key, &hash_prefix);
+            let signature = sign(&msg, &private_key, &hash_prefix);
 
-            let veri_sig = verify(msg, P, R, s);
+            let veri_sig = verify(&msg, &P, &signature);
             assert!(veri_sig)
         }
     }
@@ -128,18 +135,18 @@ mod test {
     #[test]
     fn test_msg() {
         for _ in 0..20 {
-            let mut msg: [u8; 32] = [0; 32];
+            let mut msg: Message = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
             // Generate private_key, hash_prefix and public key P
             let ((private_key, hash_prefix), P) = keygen();
 
-            let (R, s) = sign(&msg, &private_key, &hash_prefix);
+            let signature = sign(&msg, &private_key, &hash_prefix);
 
-            let mut wrong_msg: [u8; 32] = [0; 32];
+            let mut wrong_msg: Message = [0; 32];
             rand::thread_rng().fill_bytes(&mut wrong_msg);
 
-            let veri_sig = verify(wrong_msg, P, R, s);
+            let veri_sig = verify(&wrong_msg, &P, &signature);
             assert!(!veri_sig)
         }
     }
@@ -151,13 +158,13 @@ mod test {
         let G = Ed25519Curve::basepoint();
 
         for _ in 0..20 {
-            let mut msg: [u8; 32] = [0; 32];
+            let mut msg: Message = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
             // Generate private_key, hash_prefix and public key P
             let ((private_key, hash_prefix), _P) = keygen();
 
-            let (R, s) = sign(&msg, &private_key, &hash_prefix);
+            let signature = sign(&msg, &private_key, &hash_prefix);
 
             let mut wrong_key_scalar_bytes: [u8; 32] = [0; 32];
             rand::thread_rng().fill_bytes(&mut wrong_key_scalar_bytes);
@@ -166,7 +173,7 @@ mod test {
             let wrong_P = Ed25519Curve::scalar_multiplication(&G, &wrong_key_scalar);
             assert!(Ed25519Curve::is_on_curve(&wrong_P));
 
-            let veri_sig = verify(msg, wrong_P, R, s);
+            let veri_sig = verify(&msg, &wrong_P, &signature);
             assert!(!veri_sig)
         }
     }
@@ -193,7 +200,8 @@ mod test {
             let wrong_R = Ed25519Curve::scalar_multiplication(&G, &wrong_r_scalar);
             assert!(Ed25519Curve::is_on_curve(&wrong_R));
 
-            let veri_sig = verify(msg, P, wrong_R, s);
+            let wrong_signature = (wrong_R, s.clone());
+            let veri_sig = verify(&msg, &P, &wrong_signature);
             assert!(!veri_sig)
         }
     }
@@ -203,7 +211,7 @@ mod test {
         let q = Ed25519Curve::order();
 
         for _ in 0..20 {
-            let mut msg: [u8; 32] = [0; 32];
+            let mut msg: Message = [0; 32];
             rand::thread_rng().fill_bytes(&mut msg);
 
             // Generate private_key, hash_prefix and public key P
@@ -215,7 +223,9 @@ mod test {
             rand::thread_rng().fill_bytes(&mut wrong_s_bytes);
             let wrong_s = BigUint::from_bytes_le(wrong_s_bytes.as_ref()).rem(q.clone());
 
-            let veri_sig = verify(msg, P, R, wrong_s);
+            let wrong_signature = (R, wrong_s.clone());
+
+            let veri_sig = verify(&msg, &P, &wrong_signature);
             assert!(!veri_sig)
         }
     }

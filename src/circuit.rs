@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use crate::ed25519::{compress, verify};
+use crate::ed25519::{compress, verify, Signature, PublicKey, Message};
 use bellpepper::gadgets::multipack::bytes_to_bits;
 use bellpepper::gadgets::num::AllocatedNum;
 use bellpepper_core::boolean::{AllocatedBit, Boolean};
@@ -143,15 +143,15 @@ where
 }
 
 impl<F: PrimeField<Repr = [u8; 32]> + PrimeFieldBits> SigIter<F> {
-    pub fn get_step(msg: &[u8; 32], P: &AffinePoint, R: &AffinePoint, s: &BigUint) -> Self {
+    pub fn get_step(msg: &Message, P: &PublicKey, signature: &Signature) -> Self {
 
-        let veri_sig = verify(msg.clone(), P.clone(), R.clone(), s.clone());
+        let veri_sig = verify(msg, P, &signature);
         assert!(veri_sig);
 
         Self {
             pubkey: P.clone(),
             msg: msg.clone(),
-            sign: (R.clone(), s.clone()),
+            sign: signature.clone(),
             _phantom: PhantomData,
         }
     }
@@ -194,9 +194,9 @@ mod test {
     fn test_step_circuit() {
         let msg = [0u8; 32];
         let ((private_key, hash_prefix), P) = keygen();
-        let (R, s) = sign(&msg, &private_key, &hash_prefix);
+        let signture = sign(&msg, &private_key, &hash_prefix);
 
-        let step = SigIter::get_step(&msg, &P, &R, &s);
+        let step = SigIter::get_step(&msg, &P, &signture);
         let mut cs = TestConstraintSystem::<Fp>::new();
         let zero_al =
             AllocatedNum::alloc(&mut cs.namespace(|| "alloc null"), || Ok(Fp::ZERO)).unwrap();
